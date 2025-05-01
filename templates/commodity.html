@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PRICE PREDICTOR - {{ context.name }}</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    div.main { padding: 5px 50px 75px 50px; }
+    .chart-container { position: relative; height: 400px; width: 100%; }
+    canvas { width: 100% !important; height: 100% !important; }
+    .card.horizontal .card-image { max-width: 40%; }
+    .card.horizontal .card-image img { object-fit: cover; height: 100%; }
+    .commodity-title { color: #2e7d32; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="main">
+    <div class="nav-wrapper">
+      <h3 class="card-panel amber lighten-2 center valign-wrapper center">
+        <a class="brand-logo text-lighten-4" href="/">
+          <img src="/static/PRICEPREDICTLOGO.png" height="100px" width="100px" class="responsive-img" />
+          <span style="font-size: 2.0rem; margin-left: 20px; color: #333;"><b>AGRI COMMODITY PRICE PREDICTION</b></span>
+        </a>
+      </h3>
+    </div>
+
+    <h2 class="header commodity-title"><b>{{ context.name }}</b></h2>
+    
+    <div class="row">
+      <div class="col s8 m7">
+        <div class="card horizontal medium">
+          <div class="card-image">
+            <img src="{{ context.image_url }}" alt="{{ context.name }} image">
+          </div>
+          <div class="card-stacked">
+            <div class="card-content">
+              <table>
+                <tr><td>Current Price</td><td><b>₹ {{ context.current_price }} / ql</b></td></tr>
+                <tr><td>Prime Location</td><td><b>{{ context.prime_loc }}</b></td></tr>
+                <tr><td>Crop Type</td><td><b>{{ context.type_c }}</b></td></tr>
+                <tr><td>Export</td><td><b>{{ context.export }}</b></td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col s4">
+        <div class="card grey lighten-3">
+          <div class="card-content black-text">
+            <span class="card-title"><b>Brief Forecast</b></span>
+            <table>
+              <tr>
+                <td><p>Min. price time</p></td>
+                <td><h5>{{ context.min_crop[0] }}</h5></td>
+                <td><h4>₹{{ context.min_crop[1] }}</h4></td>
+              </tr>
+              <tr>
+                <td><p>Max. price time</p></td>
+                <td><h5>{{ context.max_crop[0] }}</h5></td>
+                <td><h4>₹{{ context.max_crop[1] }}</h4></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col s12 m4">
+        <h5>Forecast Trends</h5>
+        <table class="striped">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Price (₹/qtl)</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in context.forecast_values %}
+            <tr>
+              <td>{{ item[0] }}</td>
+              <td>₹{{ item[1] }}</td>
+              <td class="valign-wrapper">
+                {{ item[2] }}%
+                {% if item[2] >= 0 %}
+                  <img src="/static/gain-icon.png" height="25" width="25">
+                {% else %}
+                  <img src="/static/loss-icon.png" height="25" width="25">
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="col s12 m8">
+        <div class="card">
+          <div class="card-content">
+            <span class="card-title"><b>{{ context.name }} Price Trends (Next 12 Months)</b></span>
+            <div class="chart-container">
+              <canvas id="forecastChart"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <div class="card-content">
+            <span class="card-title"><b>{{ context.name }} Historical Data (Past 12 Months)</b></span>
+            <div class="chart-container">
+              <canvas id="historicalChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Initialize chart variables
+        let forecastChart, historicalChart;
+        
+        // Function to create or update charts
+        function renderCharts() {
+          // Destroy existing charts if they exist
+          if (forecastChart) forecastChart.destroy();
+          if (historicalChart) historicalChart.destroy();
+          
+          // Get data from template context
+          const forecastLabels = JSON.parse('{{ context.forecast_x | tojson | safe }}');
+          const forecastData = {{ context.forecast_y | tojson | safe }};
+          const historicalLabels = JSON.parse('{{ context.previous_x | tojson | safe }}');
+          const historicalData = {{ context.previous_y | tojson | safe }};
+          
+          // Common chart configuration
+          const chartConfig = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return '₹' + context.parsed.y.toFixed(2);
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: false,
+                ticks: {
+                  callback: function(value) {
+                    return '₹' + value;
+                  }
+                }
+              }
+            }
+          };
+          
+          // Create Forecast Chart
+          const forecastCtx = document.getElementById('forecastChart').getContext('2d');
+          forecastChart = new Chart(forecastCtx, {
+            type: 'line',
+            data: {
+              labels: forecastLabels,
+              datasets: [{
+                label: 'Forecast Price (₹/qtl)',
+                data: forecastData,
+                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.4,
+                fill: true,
+                borderWidth: 3
+              }]
+            },
+            options: chartConfig
+          });
+          
+          // Create Historical Chart
+          const historicalCtx = document.getElementById('historicalChart').getContext('2d');
+          historicalChart = new Chart(historicalCtx, {
+            type: 'line',
+            data: {
+              labels: historicalLabels,
+              datasets: [{
+                label: 'Historical Price (₹/qtl)',
+                data: historicalData,
+                borderColor: 'rgba(153, 102, 255, 1)',
+                backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                tension: 0.4,
+                fill: true,
+                borderWidth: 3
+              }]
+            },
+            options: chartConfig
+          });
+        }
+        
+        // Initial render
+        renderCharts();
+      });
+    </script>
+  </div>
+</body>
+</html>
