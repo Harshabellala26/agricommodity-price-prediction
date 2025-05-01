@@ -220,39 +220,50 @@ def SixMonthsForecast():
     crop_month_wise.append([month6[0][3], month6[len(month6) - 1][2], month6[len(month6) - 1][0], month6[len(month6) - 1][1], month6[0][2], month6[0][0], month6[0][1]])
     return crop_month_wise
 
-
 def SixMonthsForecastHelper(name):
     current_month = datetime.now().month
     current_year = datetime.now().year
-    current_rainfall = annual_rainfall[current_month - 1]
     name = name.lower()
-    commodity = commodity_list[0]
+    commodity = None
+
     for i in commodity_list:
-        if name == str(i):
+        if name == i.getCropName().lower():
             commodity = i
             break
-    month_with_year = []
-    for i in range(1, 7):
-        if current_month + i <= 12:
-            month_with_year.append((current_month + i, current_year, annual_rainfall[current_month + i - 1]))
+
+    if commodity is None:
+        logging.warning(f"Commodity '{name}' not found for forecast helper.")
+        return []
+
+    result = []
+
+    for offset in range(1, 7):  # Next 6 months
+        month = current_month + offset
+        year = current_year
+        if month > 12:
+            month -= 12
+            year += 1
+
+        rainfall = annual_rainfall[month - 1]
+        predicted_price = commodity.getPredictedValue([float(month), year, rainfall])
+
+        prev_month = month - 1
+        prev_year = year
+        if prev_month == 0:
+            prev_month = 12
+            prev_year -= 1
+        prev_rainfall = annual_rainfall[prev_month - 1]
+        previous_price = commodity.getPredictedValue([float(prev_month), prev_year, prev_rainfall])
+
+        if previous_price != 0:
+            change = ((predicted_price - previous_price) * 100) / previous_price
         else:
-            month_with_year.append((current_month + i - 12, current_year + 1, annual_rainfall[current_month + i - 13]))
-    wpis = []
-    current_wpi = commodity.getPredictedValue([float(current_month), current_year, current_rainfall])
-    change = []
+            change = 0
 
-    for m, y, r in month_with_year:
-        current_predict = commodity.getPredictedValue([float(m), y, r])
-        wpis.append(current_predict)
-        change.append(((current_predict - current_wpi) * 100) / current_wpi)
+        result.append([f"{month:02d}-{year}", round((predicted_price * base[commodity.getCropName()]) / 100, 2), round(change, 2)])
 
-    crop_price = []
-    for i in range(0, len(wpis)):
-        m, y, r = month_with_year[i]
-        x = datetime(y, m, 1)
-        x = x.strftime("%b %y")
-        crop_price.append([x, round((wpis[i] * base[name.capitalize()]) / 100, 2), round(change[i], 2)])
-    return crop_price
+    return result
+
 def TwelveMonthsForecast(name):
     current_month = datetime.now().month
     current_year = datetime.now().year
