@@ -1,4 +1,4 @@
-#🌾Agri Commodity Price Prediction
+🌾Agri Commodity Price Prediction
 
 An AI-powered web application that predicts the future prices of major agricultural commodities in India using Machine Learning and Time Series forecasting techniques. The system analyzes historical market prices and trends to provide both short-term and long-term price predictions, helping farmers, traders, and consumers make informed decisions.
 
